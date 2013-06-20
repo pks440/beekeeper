@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>beekeeper</title>
+
+  <link rel="stylesheet" href="app.css" />
+
+  <script src="lib/jquery-1.9.1.min.js"></script>
+  <script src="lib/n3parser.js"></script>
+  <script src="lib/d3.v3.min.js"></script>
+  <script src="lib/peer.min.js"></script>
+
+  <script src="configuration.js"></script>
+  <script src="utilities.js"></script>
+  <script src="rdfGraph.js"></script>
+  <script src="visualization.js"></script>
+  <script src="algorithm.js"></script>
+  <script src="connection.js"></script>
+  <script src="userinterface.js"></script>
+  <script src="app.js"></script>  
+</head>
+<body>
+
+  <div id="container">
+
+    <div id="input">
+      <textarea id="inputN3"><red wine> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <wine> .
+<white wine> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <wine> .
+<wine> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <beverage> .
+<beverage> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <food> .
+<food> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <consumable> .
+<liquid> <http://www.w3.org/2000/01/rdf-schema#subPropertyOf> <beverage> .
+</textarea>
+    </div>
+
+    <div id="controls">
+
+      <div id="topbar">
+          <input type="button" id="load" value="load graph" />
+          <input type="button" id="generate" value="generate graph" />
+          <input type="checkbox" id="visualize" checked /><label for="visualize">visualize</label> <span id="status-message"></span>
+          <br />
+          <!-- <input type="text" id="doData" />
+          <input type="button" id="do" value="do" /> -->
+          <div id="result">
+          </div>
+      </div>
+
+      <div id="sidebar">
+          <p id="ownerID"></p>
+          <input type="text" id="connectID" placeholder="connect ID" />
+          <input type="button" id="connect" value="connect" />
+          <div id="friendsList"></div>
+          <input type="button" id="requestList" value="request nodes list" />
+          <input type="button" id="sendScouts" value="send scouts" />
+          <br /><br />
+          <div id="algorithmControls">
+            <input type="button" id="init" value="initialize" />
+            <input type="button" id="nextStep" value="next" />
+            <input type="button" id="animate" value="animate" />
+            <input type="button" id="run" value="run" />
+            <!-- <input type="checkbox" /> -->
+          </div>
+          <div id="history"></div>
+      </div>
+
+    </div>
+
+    <div id="graph"></div>
+
+  </div>
+
+</body>
+</html>
