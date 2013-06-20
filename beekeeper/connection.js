@@ -1,6 +1,6 @@
 var p2p = (function() {
 
-	var peerjsAPIkey = 'bdnz2sap7go2bj4i';
+    var peerjsAPIkey = /*PeerJS API key*/;
     var peer;
 
     function handleConnection(c) {
@@ -29,10 +29,10 @@ var p2p = (function() {
         // });
     }
 
-	return {
+    return {
 
-	    setup: function(id) {
-	        peer = new Peer(id, { key: peerjsAPIkey });
+        setup: function(id) {
+            peer = new Peer(id, { key: peerjsAPIkey });
             peer.on('open', function(id) {
                 // own connection is ready
 
