@@ -42,12 +42,14 @@ N3parser = (function(){
         "subject": parse_subject,
         "predicate": parse_predicate,
         "object": parse_object,
-        "schema": parse_schema,
+        "rdf": parse_rdf,
+        "rdfs": parse_rdfs,
         "resource": parse_resource,
         "literal": parse_literal,
         "blank": parse_blank,
         "string": parse_string,
-        "schemaURI": parse_schemaURI,
+        "rdfURI": parse_rdfURI,
+        "rdfsURI": parse_rdfsURI,
         "URI": parse_URI,
         "_": parse__
       };
@@ -255,21 +257,31 @@ N3parser = (function(){
         
         reportFailures++;
         pos0 = pos;
-        result0 = parse_schema();
+        result0 = parse_rdf();
         if (result0 !== null) {
-          result0 = (function(offset, predicate) { return { 'type': 'schema', 'value': predicate } })(pos0, result0);
+          result0 = (function(offset, predicate) { return { 'type': 'rdf', 'value': predicate } })(pos0, result0);
         }
         if (result0 === null) {
           pos = pos0;
         }
         if (result0 === null) {
           pos0 = pos;
-          result0 = parse_resource();
+          result0 = parse_rdfs();
           if (result0 !== null) {
-            result0 = (function(offset, predicate) { return { 'type': 'uri', 'value': predicate } })(pos0, result0);
+            result0 = (function(offset, predicate) { return { 'type': 'rdfs', 'value': predicate } })(pos0, result0);
           }
           if (result0 === null) {
             pos = pos0;
+          }
+          if (result0 === null) {
+            pos0 = pos;
+            result0 = parse_resource();
+            if (result0 !== null) {
+              result0 = (function(offset, predicate) { return { 'type': 'uri', 'value': predicate } })(pos0, result0);
+            }
+            if (result0 === null) {
+              pos = pos0;
+            }
           }
         }
         reportFailures--;
@@ -297,30 +309,50 @@ N3parser = (function(){
         
         reportFailures++;
         pos0 = pos;
-        result0 = parse_resource();
+        result0 = parse_rdf();
         if (result0 !== null) {
-          result0 = (function(offset, object) { return { 'type': 'uri', 'value': object } })(pos0, result0);
+          result0 = (function(offset, object) { return { 'type': 'rdf', 'value': object } })(pos0, result0);
         }
         if (result0 === null) {
           pos = pos0;
         }
         if (result0 === null) {
           pos0 = pos;
-          result0 = parse_literal();
+          result0 = parse_rdfs();
           if (result0 !== null) {
-            result0 = (function(offset, object) { return { 'type': 'literal', 'value': object } })(pos0, result0);
+            result0 = (function(offset, object) { return { 'type': 'rdfs', 'value': object } })(pos0, result0);
           }
           if (result0 === null) {
             pos = pos0;
           }
           if (result0 === null) {
             pos0 = pos;
-            result0 = parse_blank();
+            result0 = parse_resource();
             if (result0 !== null) {
-              result0 = (function(offset, object) { return { 'type': 'blank', 'value': object } })(pos0, result0);
+              result0 = (function(offset, object) { return { 'type': 'uri', 'value': object } })(pos0, result0);
             }
             if (result0 === null) {
               pos = pos0;
+            }
+            if (result0 === null) {
+              pos0 = pos;
+              result0 = parse_literal();
+              if (result0 !== null) {
+                result0 = (function(offset, object) { return { 'type': 'literal', 'value': object } })(pos0, result0);
+              }
+              if (result0 === null) {
+                pos = pos0;
+              }
+              if (result0 === null) {
+                pos0 = pos;
+                result0 = parse_blank();
+                if (result0 !== null) {
+                  result0 = (function(offset, object) { return { 'type': 'blank', 'value': object } })(pos0, result0);
+                }
+                if (result0 === null) {
+                  pos = pos0;
+                }
+              }
             }
           }
         }
@@ -336,8 +368,8 @@ N3parser = (function(){
         return result0;
       }
       
-      function parse_schema() {
-        var cacheKey = "schema@" + pos;
+      function parse_rdf() {
+        var cacheKey = "rdf@" + pos;
         var cachedResult = cache[cacheKey];
         if (cachedResult) {
           pos = cachedResult.nextPos;
@@ -360,7 +392,7 @@ N3parser = (function(){
           }
         }
         if (result0 !== null) {
-          result1 = parse_schemaURI();
+          result1 = parse_rdfURI();
           if (result1 !== null) {
             result2 = parse_URI();
             if (result2 !== null) {
@@ -413,7 +445,94 @@ N3parser = (function(){
         }
         reportFailures--;
         if (reportFailures === 0 && result0 === null) {
-          matchFailed("schema resource");
+          matchFailed("rdf resource");
+        }
+        
+        cache[cacheKey] = {
+          nextPos: pos,
+          result:  result0
+        };
+        return result0;
+      }
+      
+      function parse_rdfs() {
+        var cacheKey = "rdfs@" + pos;
+        var cachedResult = cache[cacheKey];
+        if (cachedResult) {
+          pos = cachedResult.nextPos;
+          return cachedResult.result;
+        }
+        
+        var result0, result1, result2, result3, result4;
+        var pos0, pos1;
+        
+        reportFailures++;
+        pos0 = pos;
+        pos1 = pos;
+        if (input.charCodeAt(pos) === 60) {
+          result0 = "<";
+          pos++;
+        } else {
+          result0 = null;
+          if (reportFailures === 0) {
+            matchFailed("\"<\"");
+          }
+        }
+        if (result0 !== null) {
+          result1 = parse_rdfsURI();
+          if (result1 !== null) {
+            result2 = parse_URI();
+            if (result2 !== null) {
+              if (input.charCodeAt(pos) === 62) {
+                result3 = ">";
+                pos++;
+              } else {
+                result3 = null;
+                if (reportFailures === 0) {
+                  matchFailed("\">\"");
+                }
+              }
+              if (result3 !== null) {
+                if (input.charCodeAt(pos) === 32) {
+                  result4 = " ";
+                  pos++;
+                } else {
+                  result4 = null;
+                  if (reportFailures === 0) {
+                    matchFailed("\" \"");
+                  }
+                }
+                if (result4 !== null) {
+                  result0 = [result0, result1, result2, result3, result4];
+                } else {
+                  result0 = null;
+                  pos = pos1;
+                }
+              } else {
+                result0 = null;
+                pos = pos1;
+              }
+            } else {
+              result0 = null;
+              pos = pos1;
+            }
+          } else {
+            result0 = null;
+            pos = pos1;
+          }
+        } else {
+          result0 = null;
+          pos = pos1;
+        }
+        if (result0 !== null) {
+          result0 = (function(offset, start, rest) { return start + rest; })(pos0, result0[1], result0[2]);
+        }
+        if (result0 === null) {
+          pos = pos0;
+        }
+        reportFailures--;
+        if (reportFailures === 0 && result0 === null) {
+          matchFailed("rdf schema resource");
         }
         
         cache[cacheKey] = {
@@ -759,8 +878,35 @@ N3parser = (function(){
         return result0;
       }
       
-      function parse_schemaURI() {
-        var cacheKey = "schemaURI@" + pos;
+      function parse_rdfURI() {
+        var cacheKey = "rdfURI@" + pos;
+        var cachedResult = cache[cacheKey];
+        if (cachedResult) {
+          pos = cachedResult.nextPos;
+          return cachedResult.result;
+        }
+        
+        var result0;
+        
+        if (input.substr(pos, 42) === "http://www.w3.org/1999/02/22-rdf-syntax-ns") {
+          result0 = "http://www.w3.org/1999/02/22-rdf-syntax-ns";
+          pos += 42;
+        } else {
+          result0 = null;
+          if (reportFailures === 0) {
+            matchFailed("\"http://www.w3.org/1999/02/22-rdf-syntax-ns\"");
+          }
+        }
+        
+        cache[cacheKey] = {
+          nextPos: pos,
+          result:  result0
+        };
+        return result0;
+      }
+      
+      function parse_rdfsURI() {
+        var cacheKey = "rdfsURI@" + pos;
         var cachedResult = cache[cacheKey];
         if (cachedResult) {
           pos = cachedResult.nextPos;

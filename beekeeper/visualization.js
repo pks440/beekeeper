@@ -25,6 +25,18 @@ var D3graph = (function () {
 			.linkDistance(100) // .distance(100)
 			.charge(-500);
 
+		svg.append('svg:defs')
+			.append('svg:marker')
+				.attr('id', 'arrow')
+				.attr('viewBox', '0 -5 10 10')
+				.attr('refX', 18)
+				.attr('markerWidth', 8)
+				.attr('markerHeight', 8)
+				.attr('orient', 'auto')
+			.append('svg:path')
+				.attr('class', 'marker')
+				.attr('d', 'M0,-5L10,0L0,5');
+
 		path = svg.append('svg:g').selectAll('g.pgroup');
 		circle = svg.append('svg:g').selectAll('g.cgroup');
 
@@ -47,7 +59,7 @@ var D3graph = (function () {
 			});
 		});
 
-		m.publish('graphLoaded', svg);
+		m.notify('vis:loaded', svg);
 	}
 
 	function restart() {
@@ -56,7 +68,9 @@ var D3graph = (function () {
 		var pg = path.enter().append('svg:g').attr('class', 'pgroup');
 
 		pg.append('svg:path')
-			.attr('class', 'link');
+			.attr('class', 'link')
+			.style('marker-end', (config.showMarkers) ? 'url(#arrow)' : '')
+			.classed('inferred', function(d) { return d.inferred; });
 
 		pg.append('svg:text')
 			.attr('dx', 0)
@@ -75,7 +89,7 @@ var D3graph = (function () {
 		cg.append('svg:circle')
 			.attr('class', 'node')
 			.attr('id', function(d) { return utils.validId(d.id); })
-			.attr('r', 6);
+			.attr('r', function(d) { return (d.linkTarget) ? 9 : 6; });
 
 		cg.append('svg:text')
 			.attr('x', 0)
@@ -85,11 +99,17 @@ var D3graph = (function () {
 			.on('mouseover', function(d) { d3.select(this).text(d.id); })
 			.on('mouseout', function(d) { d3.select(this).text(d.label); });
 
+		cg.append('svg:text')
+			.attr('x', 0)
+			.attr('y', 20)
+			.attr('class', function(d) { return (d.linkTarget) ? 'id label RDFlinkTarget' : 'id label'})
+			.text(function(d) { return (d.linkTarget && config.hostedBy[utils.getBase(d.id)]) ? config.hostedBy[utils.getBase(d.id)].join(', ') : ''; });
+
 		circle.exit().remove();
 
 		force.start();
 
-		m.publish('graphUpdated', svg);
+		m.notify('vis:updated', svg);
 	}
 
 	return {
@@ -99,19 +119,20 @@ var D3graph = (function () {
 			setup(id);
 		},
 
-		newNode: function(id) {
+		newNode: function(id, RDFlinkTarget) {
 			var x = Math.floor(Math.random() * (500 - 460 + 1)) + 460;
 			var y = Math.floor(Math.random() * (270 - 220 + 1)) + 220;
 			var label = utils.getHash(id);
-			var node = {id: id, label: label, x: x, y: y};
+			var linkTarget = (RDFlinkTarget) ? true : false;
+			var node = {id: id, label: label, linkTarget: linkTarget, x: x, y: y};
 			nodes.push(node);
 
 			restart();
 
-			m.publish('graphNewNode', node);
+			m.notify('vis:nodeNew', node);
 		},
 
-		newLink: function(sourceId, id, targetId) {
+		newLink: function(sourceId, id, targetId, inferred) {
 			var source = target = null;
 			for (var i = 0, len = nodes.length; i < len; i++) {
 				if (nodes[i].id == sourceId) source = nodes[i];
@@ -119,12 +140,12 @@ var D3graph = (function () {
 				if (source && target) break;
 			}
 			var label = utils.getHash(id);
-			var link = {source: source, id: id, label: label, target: target};
+			var link = {source: source, id: id, label: label, target: target, inferred: inferred};
 			links.push(link);
 
 			restart();
 
-			m.publish('graphNewLink', link);
+			m.notify('vis:linkNew', link);
 		},
 
 		styleNode: function(node, className) {
@@ -132,15 +153,15 @@ var D3graph = (function () {
 			// selectedNode = nodes.filter(function(l) {
 			// 	return (l.id === node);
 			// })[0];
-		    var node = d3.select('#' + utils.validId(node)).classed(className, true); //style(style);
+			var node = d3.select('#' + utils.validId(node)).classed(className, true);
 
-		    m.publish('graphSelNode', node);
+			m.notify('vis:nodeSel', node);
 		},
 
 		unstyleNode: function(node, className) {
-			var node = d3.select('#' + utils.validId(node)).classed(className, false); //style({ 'fill': '#eee', 'stroke': '#333' });
+			var node = d3.select('#' + utils.validId(node)).classed(className, false);
 
-			m.publish('graphUnselNode', node);
+			m.notify('vis:nodeUnsel', node);
 		}
 
 	};

@@ -13,12 +13,13 @@
   <script src="lib/peer.min.js"></script>
 
   <script src="configuration.js"></script>
+  <script src="behavior.js"></script>
   <script src="utilities.js"></script>
   <script src="rdfGraph.js"></script>
   <script src="visualization.js"></script>
-  <script src="algorithm.js"></script>
+  <script src="swarm.js"></script>
   <script src="connection.js"></script>
-  <script src="userinterface.js"></script>
+  <script src="uicontroller.js"></script>
   <script src="app.js"></script>  
 </head>
 <body>
@@ -38,9 +39,16 @@
     <div id="controls">
 
       <div id="topbar">
-          <input type="button" id="load" value="load graph" />
-          <input type="button" id="generate" value="generate graph" />
-          <input type="checkbox" id="visualize" checked /><label for="visualize">visualize</label> <span id="status-message"></span>
+          <input type="button" id="load" value="Paste RDF" />
+          <input type="button" id="generate" value="Generate Graph" />
+          <input type="file" id="files" onchange="loadFiles(this.files)" />
+          <!-- accept="text/plain, text/xml, application/xml, application/rdf+xml" -->
+          <!-- application/json -->
+          <input type="checkbox" id="visualize" checked /><label for="visualize">visualize</label>
+          <input type="button" id="saveFile" value="Save to File" />
+          <input type="button" id="loadExperiment" value="Load Experiment" />
+          <input type="button" id="saveExperiment" value="Save Experiment Data" />
+          <span id="status-message"></span>
           <br />
           <!-- <input type="text" id="doData" />
           <input type="button" id="do" value="do" /> -->
@@ -53,13 +61,16 @@
           <input type="text" id="connectID" placeholder="connect ID" />
           <input type="button" id="connect" value="connect" />
           <div id="friendsList"></div>
-          <input type="button" id="requestList" value="request nodes list" />
+          <!-- <input type="button" id="requestList" value="request nodes list" /> -->
+          <input type="button" id="requestHostedDatasets" value="request hosted datasets" />
           <input type="button" id="sendScouts" value="send scouts" />
           <br /><br />
           <div id="algorithmControls">
             <input type="button" id="init" value="initialize" />
             <input type="button" id="nextStep" value="next" />
             <input type="button" id="animate" value="animate" />
+            <label for="speedSlider" class="animationSpeed">speed: </label>
+            <input type="range" min="10" max="2010" step="200" id="speedSlider" class="animationSpeed" />
             <input type="button" id="run" value="run" />
             <!-- <input type="checkbox" /> -->
           </div>

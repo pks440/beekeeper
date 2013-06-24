@@ -1,15 +1,15 @@
 var p2p = (function() {
 
-	var peerjsAPIkey = 'bdnz2sap7go2bj4i';
+    var peerjsAPIkey = /*PeerJS API key*/;
     var peer;
 
     function handleConnection(c) {
         c.on('data', function(data) {
-            m.publish('p2pData', data);
+            m.notify('p2p:data', data);
         });
 
         c.on('close', function() {
-            m.publish('p2pClose', c);
+            m.notify('p2p:close', c);
         }); // TODO: accept new peer?
     }
 
@@ -17,7 +17,7 @@ var p2p = (function() {
         for (peerId in config.friends) {
             if (config.friends[peerId]['selected']) {
                 var conn = peer.connections[peerId].peerjs;
-                fn(conn, $(this));
+                fn(conn);
             }
         }
 
@@ -29,22 +29,22 @@ var p2p = (function() {
         // });
     }
 
-	return {
+    return {
 
-	    setup: function(id) {
-	        peer = new Peer(id, { key: peerjsAPIkey });
+        setup: function(id) {
+            peer = new Peer(id, { key: peerjsAPIkey });
             peer.on('open', function(id) {
                 // own connection is ready
 
-                m.publish('p2pOpen', id);
+                m.notify('p2p:open', id);
             });
             peer.on('connection', function(c) {
                 // connection with other peer is ready
                 handleConnection(c);
 
-                m.publish('p2pConn', c);
+                m.notify('p2p:conn', c);
             });
-	    },
+        },
 
         connect: function(id) { // (id, callback)
             if (!peer.connections[id]) {
@@ -52,7 +52,7 @@ var p2p = (function() {
                 c.on('open', function() {
                     handleConnection(c);
 
-                    m.publish('p2pOpen', id);
+                    m.notify('p2p:open', id);
 
                     // typeof callback === 'function' && callback();
                 });
@@ -74,7 +74,7 @@ var p2p = (function() {
                     console.log(message);
                 }
             } else {
-                eachSelectedConnection(function(c, $c) {
+                eachSelectedConnection(function(c) {
                     if (config.friends[c.peer]['blockOut']) {
                         console.log('Outgoing message to ' + c.peer + ' blocked.');
                     } else {
@@ -87,10 +87,16 @@ var p2p = (function() {
             }
         },
 
-        close: function() {
-            eachSelectedConnection(function(c, $c) {
-                c.close();
-            });
+        close: function(id) {
+            id = id || null;
+
+            if (id) {
+                peer.connections[id].peerjs.close();
+            } else {
+                eachSelectedConnection(function(c) {
+                    c.close();
+                });
+            }
         },
 
         destroy: function() {
@@ -99,6 +105,6 @@ var p2p = (function() {
             }
         }
 
-	};
+    };
 
 })();
