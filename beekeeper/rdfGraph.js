@@ -4,45 +4,53 @@ var rdfGraph = (function() {
         edgesIndex = {},
         nodes = {},
         edges = {},
-        inferredEdges = {};
+        inferredEdges = {},
+        classes = {},
+        properties = {};
 
     var numOfTriples = 0,
-        numOfInferredTriples = 0
+        numOfInferredTriples = 0;
 
-    function Node(node, type, RDFlinkTarget) {
-        this.node = node;
-        this.type = type;
-        this.RDFlinkTarget = RDFlinkTarget;
+    function newNode(id, type, RDFlinkTarget) {
+        var node = {
+            'id': id,
+            'type': type,
+            'RDFlinkTarget': RDFlinkTarget
+        }
 
-        m.notify('rdf:nodeNew', this);
+        m.notify('rdf:nodeNew', node);
+        
+        return node;
     }
 
-    Node.prototype.toString = function() { return this.node; };
+    // TODO: add newInferredNode
 
-    function Edge(source, label, target, type) {
-        this.source = source;
-        this.label = label;
-        this.target = target;
-        this.type = type;
+    function newEdge(source, id, target, type) {
+        var edge = {
+            'source': source,
+            'id': id,
+            'target': target,
+            'type': type
+        }
 
-        m.notify('rdf:edgeNew', this);
+        m.notify('rdf:edgeNew', edge);
+
+        return edge;
     }
 
-    Edge.prototype.toString = function() { return this.source + ' ' + this.label + ' ' + this.target; };
-    Edge.prototype.getOtherEnd = function(node) { return (node == this.source) ? this.target : this.source; };
+    function newInferredEdge(source, id, target, steps, type) {
+        var edge = {
+            'source': source,
+            'id': id,
+            'target': target,
+            'steps': steps,
+            'type': type
+        }
 
-    function InferredEdge(source, label, target, steps, type) {
-        this.source = source;
-        this.label = label;
-        this.target = target;
-        this.steps = steps;
-        this.type = type;
+        m.notify('rdf:inferredNew', edge);
 
-        m.notify('rdf:inferredNew', this);
+        return edge;
     }
-
-    InferredEdge.prototype.toString = function() { return this.source + ' ' + this.label + ' ' + this.target; };
-    InferredEdge.prototype.getSteps = function() { return this.steps; };
 
     return {
 
@@ -57,7 +65,10 @@ var rdfGraph = (function() {
             nodes = {};
             edges = {};
             inferredEdges = {};
+            classes = {},
+            properties = {};
             numOfTriples = 0;
+            numOfInferredTriples = 0;
 
             m.notify('rdf:cleared');
         },
@@ -70,13 +81,24 @@ var rdfGraph = (function() {
             for (var i = 0; i < numOfTriples; i++) {
                 if (triples[i].o.type == 'literal') { continue; }
 
-                var linkTarget = (triples[i].p.value == sameAsURI);
+                var RDFlinkTarget = (triples[i].p.value == sameAsURI);
+
+                if (triples[i].o.value == classURI && triples[i].p.value == typeURI) {
+                    classes[triples[i].s.value] = 1; // classes[triples[i].s.value] + 1 || 1
+                }
+
+                if (triples[i].o.value == propertyURI && triples[i].p.value == typeURI) {
+                    properties[triples[i].s.value] = 1; // properties[triples[i].s.value] + 1 || 1
+                }
 
                 var subject = this.newNode(triples[i].s.value, triples[i].s.type) || this.getNode(triples[i].s.value);
-                var object = this.newNode(triples[i].o.value, triples[i].o.type, linkTarget) || this.getNode(triples[i].o.value);
+                var object = this.newNode(triples[i].o.value, triples[i].o.type, RDFlinkTarget) || this.getNode(triples[i].o.value);
 
                 this.newEdge(subject, triples[i].p.value, object, triples[i].p.type);
             }
+
+            console.log(classes);
+            console.log(properties);
 
             m.notify('rdf:loaded', numOfTriples);
         },
@@ -90,6 +112,18 @@ var rdfGraph = (function() {
 
         loadFromWebStorage: function(data, format) {
             //
+            if (localStorage[config.ownerID + '_graph']) {
+                var graphData = JSON.parse(localStorage[config.ownerID + '_graph']);
+                nodesIndex = graphData.nodesIndex;
+                edgesIndex = graphData.edgesIndex;
+                nodes = graphData.nodes;
+                edges = graphData.edges;
+                classes = graphData.classes;
+                properties = graphData.properties;
+                numOfTriples = graphData.numOfTriples;
+                // add edges and nodes from data
+            }
+
             if (format == 'n3') this.parseN3(data);
 
             // m.notify('rdf:loaded', rdfGraph);
@@ -106,24 +140,36 @@ var rdfGraph = (function() {
 
         },
 
+        saveToWebStorage: function() {
+            var graphData = {};
+            graphData.nodesIndex = nodesIndex;
+            graphData.edgesIndex = edgesIndex;
+            graphData.nodes = nodes;
+            graphData.edges = edges;
+            graphData.classes = classes;
+            graphData.properties = properties;
+            graphData.numOfTriples = numOfTriples;
+
+            localStorage[config.ownerID + '_graph'] = JSON.stringify(graphData);
+        },
+
         saveToFile: function() {
             var data = [], triple = null, source = '', target = '';
 
-            window.edges = edges;
             for (edge in edges) {
                 triple = edges[edge];
 
-                source = '<' + triple.source.node + '>';
+                source = '<' + triple.source.id + '>';
                 if (triple.source.type == 'blank')
-                    source = triple.source.node;
+                    source = triple.source.id;
 
-                target = '<' + triple.target.node + '>';
+                target = '<' + triple.target.id + '>';
                 if (triple.target.type == 'blank')
-                    target = triple.target.node;
+                    target = triple.target.id;
                 if (triple.target.type == 'literal')
-                    target = '"' + triple.target.node + '"';
+                    target = '"' + triple.target.id + '"';
 
-                data.push(source + ' <' + triple.label  + '> ' + target + ' .');
+                data.push(source + ' <' + triple.id  + '> ' + target + ' .');
             }
 
             data = data.join('\n');
@@ -131,58 +177,60 @@ var rdfGraph = (function() {
             saveAsFile(filename, data);
         },
 
-        newNode: function(node, type, RDFlinkTarget) {
-            if (typeof nodesIndex[node] == 'undefined') {
-                nodesIndex[node] = new Node(node, type, RDFlinkTarget);
-                nodes[node] = 1;
+        newNode: function(id, type, RDFlinkTarget) {
+            if (typeof nodesIndex[id] == 'undefined') {
+                nodesIndex[id] = newNode(id, type, RDFlinkTarget);
+                nodes[id] = 1;
 
-                return nodesIndex[node];
+                return nodesIndex[id];
             } else {
-                nodes[node]++;
+                nodes[id]++;
 
                 return null;
             }
         },
 
+        // TODO: add newInferredNode
+
         newEdge: function(subject, predicate, object, type) {
-            var edge = new Edge(subject, predicate, object, type);
+            var edge = newEdge(subject, predicate, object, type);
 
-            edges[edge.toString()] = edge;
+            edges[this.edgeToString(edge)] = edge;
 
-            if (typeof edgesIndex[subject.node] == 'undefined')
-                edgesIndex[subject.node] = {};
-            edgesIndex[subject.node][edge.toString()] = edge;
+            if (typeof edgesIndex[subject.id] == 'undefined')
+                edgesIndex[subject.id] = {};
+            edgesIndex[subject.id][this.edgeToString(edge)] = edge;
 
-            if (typeof edgesIndex[object.node] == 'undefined')
-                edgesIndex[object.node] = {};
-            edgesIndex[object.node][edge.toString()] = edge;
+            if (typeof edgesIndex[object.id] == 'undefined')
+                edgesIndex[object.id] = {};
+            edgesIndex[object.id][this.edgeToString(edge)] = edge;
 
             return edge;
         },
 
         newInferredEdge: function(subject, predicate, object, type) {
-            if (!edges[subject + ' ' + predicate + ' ' + object]) {
-                var edge = new InferredEdge(subject, predicate, object, '[steps]', type);
-                inferredEdges[edge.toString()] = 1;
+            if (!edges[subject.id + ' ' + predicate + ' ' + object.id]) {
+                var edge = newInferredEdge(subject, predicate, object, '[steps]', type);
+                inferredEdges[this.edgeToString(edge)] = 1;
 
                 numOfInferredTriples++;
                 numOfTriples++;
 
                 // console.log(inferredEdges);
 
-                return edge; //this.newEdge(subject, predicate, object, type);
+                return this.newEdge(subject, predicate, object, type);
             } else {
-                if (inferredEdges[subject + ' ' + predicate + ' ' + object]) {
-                    inferredEdges[subject + ' ' + predicate + ' ' + object]++;
+                if (inferredEdges[subject.id + ' ' + predicate + ' ' + object.id]) {
+                    inferredEdges[subject.id + ' ' + predicate + ' ' + object.id]++;
                 }
 
                 return null;
             }
         },
 
-        getNode: function(node) {
-            if (nodesIndex[node]) {
-                return nodesIndex[node];
+        getNode: function(id) {
+            if (nodesIndex[id]) {
+                return nodesIndex[id];
             } else {
                 return null;
             }        
@@ -198,31 +246,59 @@ var rdfGraph = (function() {
             return nodes;
         },
 
+        nodeToString: function(node) {
+            return node.id;
+        },
+
         getSortedNodes: function() {
             return Object.keys(nodes).sort(function(a,b) { return nodes[b] - nodes[a] });
         },
 
-        getEdges: function(node) {
-            return edgesIndex[node];
+        getEdges: function(nodeId) {
+            return edgesIndex[nodeId];
         },
 
-        getRDFSedges: function(node) {
+        edgeToString: function(edge) {
+            return edge.source.id + ' ' + edge.id + ' ' + edge.target.id;
+        },
+
+        edgeGetOtherEnd: function(edge, node) {
+            return (node == edge.source) ? edge.target : edge.source;
+        },
+
+        getRDFSedges: function(nodeId) {
             //
         },
 
-        getLinkEdges: function(node) {
+        getLinkEdges: function(nodeId) {
             var linkEdges = [];
-            var edges = edgesIndex[node];
+            var edges = edgesIndex[nodeId];
             for (edge in edges) {
-                if (edge.label == sameAsURI) linkEdges.push(edge);
+                if (edge.id == sameAsURI) linkEdges.push(edge);
             }
             return linkEdges;
         },
 
         getRandomEdgeFromNode: function(node) {
-            var edges = edgesIndex[node];
+            var edges = edgesIndex[node.id];
             var keys = Object.keys(edges);
             return edges[keys[Math.floor(keys.length * Math.random())]];
+        },
+
+        inferredEdgeToString: function(edge) {
+            return edge.source.id + ' ' + edge.id + ' ' + edge.target.id;
+        },
+
+        getClasses: function() {
+            return classes;
+        },
+
+        getProperties: function() {
+            return properties;
+        },
+
+        getNumOfTriples: function() {
+            return numOfTriples;
         }
 
     };

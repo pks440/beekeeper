@@ -1,13 +1,14 @@
 var D3graph = (function () {
 
 	var width, height;
-	var svg, force;
+	var svg, force, loading;
 	var nodes, links;
 	var path, circle;
 
 	function setup(id) {
-		width = 600; //1280 or window.innerWidth - 40
-		height = 550; //window.innerHeight - 70
+		width = window.innerWidth - 40; //1280 or 600
+		height = window.innerHeight - 70; //550
+		// TODO: update when window-size changes
 
 		svg = d3.select('#' + id)
 			.append('svg')
@@ -24,6 +25,13 @@ var D3graph = (function () {
 			.size([width, height])
 			.linkDistance(100) // .distance(100)
 			.charge(-500);
+
+		// loading = svg.append('text')
+		// 	.attr('x', width / 2)
+		// 	.attr('y', height - 20)
+		// 	.attr('dy', '.35em')
+		// 	.attr('text-anchor', 'middle')
+		// 	.text('');
 
 		svg.append('svg:defs')
 			.append('svg:marker')
@@ -69,90 +77,92 @@ var D3graph = (function () {
 
 		pg.append('svg:path')
 			.attr('class', 'link')
-			.style('marker-end', (config.showMarkers) ? 'url(#arrow)' : '')
-			.classed('inferred', function(d) { return d.inferred; });
+			.classed('inferred', function(d) { return d.inferred; })
+			.style('marker-end', (config.showMarkers) ? 'url(#arrow)' : '');
 
-		pg.append('svg:text')
-			.attr('dx', 0)
-			.attr('dy', 0)
-			.attr('class', 'id label')
-			.text(function(d) { return d.label; })
-			.on('mouseover', function(d) { d3.select(this).text(d.id); })
-			.on('mouseout', function(d) { d3.select(this).text(d.label); });
+		if (config.showLabels) {
+			pg.append('svg:text')
+				.attr('class', 'id label')
+				.attr('x', 0)
+				.attr('y', 0)
+				.text(function(d) { return utils.getHash(d.id); })
+				.on('mouseover', function(d) { d3.select(this).text(d.id); })
+				.on('mouseout', function(d) { d3.select(this).text(utils.getHash(d.id)); });
+		}
 
 		path.exit().remove();
 
 		circle = circle.data(nodes, function(d) { return d.id; });
 
-		var cg = circle.enter().append('svg:g').attr('class', 'cgroup').call(force.drag);
+		var cg = circle.enter().append('svg:g').attr('class', 'cgroup');
+		if (!config.staticGraph) cg.call(force.drag);
 
 		cg.append('svg:circle')
 			.attr('class', 'node')
 			.attr('id', function(d) { return utils.validId(d.id); })
-			.attr('r', function(d) { return (d.linkTarget) ? 9 : 6; });
+			.attr('r', function(d) { return (d.RDFlinkTarget) ? 9 : 6; });
+
+		if (config.showLabels) {
+			cg.append('svg:text')
+				.attr('class', 'id label')
+				.attr('x', 0)
+				.attr('y', -18)
+				.text(function(d) { return utils.getHash(d.id); })
+				.on('mouseover', function(d) { d3.select(this).text(d.id); })
+				.on('mouseout', function(d) { d3.select(this).text(utils.getHash(d.id)); });
+		}
 
 		cg.append('svg:text')
-			.attr('x', 0)
-			.attr('y', -18)
-			.attr('class', 'id label')
-			.text(function(d) { return d.label; })
-			.on('mouseover', function(d) { d3.select(this).text(d.id); })
-			.on('mouseout', function(d) { d3.select(this).text(d.label); });
-
-		cg.append('svg:text')
+			.attr('class', function(d) { return (d.RDFlinkTarget) ? 'id label RDFlinkTarget' : 'id label'})
 			.attr('x', 0)
 			.attr('y', 20)
-			.attr('class', function(d) { return (d.linkTarget) ? 'id label RDFlinkTarget' : 'id label'})
-			.text(function(d) { return (d.linkTarget && config.hostedBy[utils.getBase(d.id)]) ? config.hostedBy[utils.getBase(d.id)].join(', ') : ''; });
+			.text(function(d) { return (d.RDFlinkTarget && config.hostedBy[utils.getBase(d.id)]) ? config.hostedBy[utils.getBase(d.id)].join(', ') : ''; });
 
 		circle.exit().remove();
 
 		force.start();
+
+		if (config.staticGraph) {
+			// loading.text('recalculating graph...');
+			var i = config.staticGraphIterations;
+			while (i--) force.tick();
+			force.stop();
+			// loading.text('');
+		}
+		// TODO: implement asynchronously
 
 		m.notify('vis:updated', svg);
 	}
 
 	return {
 
+		restart: restart,
+
 		newGraph: function(id) { // initialize: function() {
 			$('#' + id).html('');
 			setup(id);
 		},
 
-		newNode: function(id, RDFlinkTarget) {
-			var x = Math.floor(Math.random() * (500 - 460 + 1)) + 460;
-			var y = Math.floor(Math.random() * (270 - 220 + 1)) + 220;
-			var label = utils.getHash(id);
-			var linkTarget = (RDFlinkTarget) ? true : false;
-			var node = {id: id, label: label, linkTarget: linkTarget, x: x, y: y};
+		newNode: function(node) {
+			node.x = Math.floor(Math.random() * (500 - 460 + 1)) + 460;
+			node.y = Math.floor(Math.random() * (270 - 220 + 1)) + 220;
 			nodes.push(node);
 
-			restart();
+			if (!config.staticGraph) restart();
 
 			m.notify('vis:nodeNew', node);
 		},
 
-		newLink: function(sourceId, id, targetId, inferred) {
-			var source = target = null;
-			for (var i = 0, len = nodes.length; i < len; i++) {
-				if (nodes[i].id == sourceId) source = nodes[i];
-				if (nodes[i].id == targetId) target = nodes[i];
-				if (source && target) break;
-			}
-			var label = utils.getHash(id);
-			var link = {source: source, id: id, label: label, target: target, inferred: inferred};
+		newLink: function(link, inferred) {
+			link.inferred = inferred;
 			links.push(link);
 
-			restart();
+			if (inferred || !config.staticGraph) restart();
 
 			m.notify('vis:linkNew', link);
 		},
 
 		styleNode: function(node, className) {
-			// var selectedNode;
-			// selectedNode = nodes.filter(function(l) {
-			// 	return (l.id === node);
-			// })[0];
 			var node = d3.select('#' + utils.validId(node)).classed(className, true);
 
 			m.notify('vis:nodeSel', node);
@@ -168,61 +178,61 @@ var D3graph = (function () {
 
 })(); // import D3
 
-var swarmVis = (function () {
+// var swarmVis = (function () {
 
-	var swarm;
+// 	var swarm;
 
-	function init(id) {
-		swarm = $('#' + id + ' svg').append('svg:g');
-	}
+// 	function init(id) {
+// 		swarm = $('#' + id + ' svg').append('svg:g');
+// 	}
 
-	return {
+// 	return {
 
-		initialize: init,
+// 		initialize: init,
 
-		newScout: function(scout) {
-			// swarm.append('svg:circle')
-			// 	.attr('class', 'bee')
-			// 	.attr('id', scout.id)
-			// 	.attr('r', 2)
-			// 	.attr('x', getNodeLocation(scout.location))
-			// 	.attr('y', getNodeLocation(scout.location));
-		},
+// 		newScout: function(scout) {
+// 			// swarm.append('svg:circle')
+// 			// 	.attr('class', 'bee')
+// 			// 	.attr('id', scout.id)
+// 			// 	.attr('r', 2)
+// 			// 	.attr('x', getNodeLocation(scout.location))
+// 			// 	.attr('y', getNodeLocation(scout.location));
+// 		},
 
-		newForager: function(forager) {
+// 		newForager: function(forager) {
 
-		},
+// 		},
 
-		newNurseBee: function(nurseBee) {
+// 		newNurseBee: function(nurseBee) {
 
-		},
+// 		},
 
-		moveScout: function(scout) {
-			// swarm.select('id': scout.id)
-			// 	.attr('x', getNodeLocation(scout.location))
-			// 	.attr('y', getNodeLocation(scout.location));
-		},
+// 		moveScout: function(scout) {
+// 			// swarm.select('id': scout.id)
+// 			// 	.attr('x', getNodeLocation(scout.location))
+// 			// 	.attr('y', getNodeLocation(scout.location));
+// 		},
 
-		moveForager: function(forager) {
+// 		moveForager: function(forager) {
 
-		},
+// 		},
 
-		moveNurseBee: function(nurseBee) {
+// 		moveNurseBee: function(nurseBee) {
 
-		},
+// 		},
 
-		removeScout: function(scout) {
+// 		removeScout: function(scout) {
 
-		},
+// 		},
 
-		removeForager: function(forager) {
+// 		removeForager: function(forager) {
 
-		},
+// 		},
 
-		removeNurseBee: function(nurseBee) {
+// 		removeNurseBee: function(nurseBee) {
 
-		},
+// 		},
 
-	};
+// 	};
 
-})(); // import D3
+// })(); // import D3

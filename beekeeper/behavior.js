@@ -1,8 +1,11 @@
 var typeURI = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type',
     subClassOfURI = 'http://www.w3.org/2000/01/rdf-schema#subClassOf',
     subPropertyOfURI = 'http://www.w3.org/2000/01/rdf-schema#subPropertyOf',
+    domainURI = 'http://www.w3.org/2000/01/rdf-schema#domain',
+    rangeURI = 'http://www.w3.org/2000/01/rdf-schema#range',
     resourceURI = 'http://www.w3.org/2000/01/rdf-schema#Resource',
-    classURI = 'http://www.w3.org/2000/01/rdf-schema#Class',
+    classURI = 'http://www.w3.org/2002/07/owl#Class', //'http://www.w3.org/2000/01/rdf-schema#Class', 'http://www.w3.org/2002/07/owl#Class'
+    propertyURI = 'http://www.w3.org/2002/07/owl#ObjectProperty', //'http://www.w3.org/1999/02/22-rdf-syntax-ns#Property', 'http://www.w3.org/2002/07/owl#ObjectProperty', 'http://www.w3.org/2002/07/owl#DatatypeProperty'
     literalURI = 'http://www.w3.org/2000/01/rdf-schema#Literal',
     datatypeURI = 'http://www.w3.org/2000/01/rdf-schema#Datatype'
     sameAsURI = 'http://www.w3.org/2002/07/owl#sameAs';
@@ -24,142 +27,142 @@ var behavior = {
 		//
 	},
 
-	scoutMove: function() {
-		var edge = rdfGraph.getRandomEdgeFromNode(this.isAt);
-		var target = edge.getOtherEnd(this.isAt);
+	scoutMove: function(scout) {
+		var edge = rdfGraph.getRandomEdgeFromNode(scout.isAt);
+		var target = rdfGraph.edgeGetOtherEnd(edge, scout.isAt);
 
 		var moveType = 'moved';
 
-		if (edge.label != sameAsURI) {
-			this.isAt = target;
-			m.notify('swm:sctMove', this);
+		if (edge.id != sameAsURI) {
+			scout.isAt = target;
+			m.notify('swm:sctMove', scout);
 		} else {
-			var base = utils.getBase(target.node);
+			var base = utils.getBase(target.id);
 
-			if (config.linksetsEnabled && config.hostedBy[base] && config.hostedBy[base].indexOf(this.owner) == -1 && $('#' + config.hostedBy[base][0]).hasClass('connected')) { // && config.hosts.indexOf(base) == -1
-				this.isAt = target;
+			if (config.linksetsEnabled && config.hostedBy[base] && config.hostedBy[base].indexOf(scout.owner) == -1 && $('#' + config.hostedBy[base][0]).hasClass('connected')) { // && config.hosts.indexOf(base) == -1
+				scout.isAt = target;
 				// send scout to peer that hosts target dataset
-				var scout = swarm.prepareScoutForMigrating(this);
-				p2p.send('scouts', scout, config.hostedBy[base][0]); // or config.hostedBy[base][random]
+				p2p.send('scouts', [scout], config.hostedBy[base][0]); // or config.hostedBy[base][random]
 
-				m.notify('swm:sctMigratedTo', this, config.hostedBy[base][0]); // or m.notify('swm:sctsSentTo', this, config.hostedBy[base][0]);
+				m.notify('swm:sctMigratedTo', scout, config.hostedBy[base][0]); // or m.notify('swm:sctsSentTo', scout, config.hostedBy[base][0]);
 				// or implement removing and sending of scout at 'scoutMigrated' listener
 
 				moveType = 'migrated';
 			} else {
 				console.log('sameAs relation found, but no known hoster of the target');
-				this.isAt = target;
-				m.notify('swm:sctMove', this);
+				scout.isAt = target;
+				m.notify('swm:sctMove', scout);
 			}
 		}
 
 		return moveType;
 	},
 
-	scoutFoundSomething: function() {
-		if (this.type == this.isAt.node) {
-			monitor('scout from ' + this.owner + ' found:', 'scout id: ' + this.id);
-			monitor('&nbsp;&nbsp;' + utils.getHash(this.type), '', 'data');
+	scoutFoundSomething: function(scout) {
+		if (scout.node == scout.isAt.id) {
+			monitor('Scout from ' + scout.owner + ' found:', 'scout id: ' + scout.id);
+			monitor('&nbsp;&nbsp;' + utils.getHash(scout.node), '', 'data');
 
-			m.notify('swm:sctFound', this);
+			m.notify('swm:sctFound', scout);
 			return true;
 		} else {
 			return false;
 		}
 	},
 
-	foragerMove: function() {
-		this.wasAt = this.isAt;
-		this.passedEdge = rdfGraph.getRandomEdgeFromNode(this.isAt)
-		this.isAt = this.passedEdge.getOtherEnd(this.isAt);
-		this.energy--;
+	foragerMove: function(forager) {
+		forager.wasAt = forager.isAt;
+		forager.passedEdge = rdfGraph.getRandomEdgeFromNode(forager.isAt)
+		forager.isAt = rdfGraph.edgeGetOtherEnd(forager.passedEdge, forager.isAt);
+		forager.energy--;
 
-		m.notify('swm:fgrMove', this);
+		m.notify('swm:fgrMove', forager);
 	},
 
-	foragerFoundSomething: function() {
-		// monitor('wasAt: ' + this.wasAt + ' triple.s: ' + this.triple.s);
-		// monitor('passedEdge: ' + this.passedEdge.label + ' triple.p: ' + this.triple.p);
-		if (this.wasAt == this.triple.s && this.passedEdge.label == this.triple.p) { // if passed by her triple
-			var subject = utils.getHash(this.wasAt.node);
-			var predicate = utils.getHash(this.passedEdge.label);
-			var object = utils.getHash(this.isAt.node);
+	foragerFoundSomething: function(forager) {
+        var s = forager.triple.s || forager.wasAt.id;
+        var p = forager.triple.p || forager.passedEdge.id;
+        var o = forager.triple.o || forager.isAt.id;
 
-			monitor('forager from ' + this.owner + ' found:', 'forager id: ' + this.id);
-			monitor('&nbsp;&nbsp;' + subject + ' ' + predicate + ' ' + object, '', 'data');
+        var wasAt = forager.wasAt.id;
+        var passedEdge = forager.passedEdge.id;
+        var isAt = forager.isAt.id;
+        var target = forager.passedEdge.target.id;
 
-			this.memory = this.isAt.node;
-			// this.energy++; // this.energy = workerEnergy;
-			m.notify('swm:fgrFound', this);
-			return true;
-		} else {
-			return false;
-		}
+        if (wasAt == s && passedEdge == p && isAt == o && o == target) { // TODO: && not already found/sent
+			monitor('Forager from ' + forager.owner + ' found:', 'forager id: ' + forager.id);
+			monitor('&nbsp;&nbsp;' + utils.getHash(s) + ' ' + utils.getHash(p) + ' ' + utils.getHash(o), '', 'data');
 
-		// return (found something) ? true : false;
-	},
-
-	foragerIsExhausted: function() {
-		if (this.energy < 1) {
-			monitor('forager from ' + this.owner + ' is exhausted.', 'forager id: ' + this.id);
-
-			m.notify('swm:fgrExhausted', this);
+			forager.memory = { 'source': s, 'id': p, 'target': o, 'type': utils.getTypeURI(p) };
+			// forager.energy++; // forager.energy = workerEnergy; // forager = swarm.removeForager(forager);
+			m.notify('swm:fgrFound', forager);
 			return true;
 		} else {
 			return false;
 		}
 	},
 
-	nurseBeeMove: function() {
-		this.prevEdge = this.passedEdge;
-		this.wasAt = this.isAt;
-		this.passedEdge = rdfGraph.getRandomEdgeFromNode(this.isAt)
-		this.isAt = this.passedEdge.getOtherEnd(this.isAt);
+	foragerIsExhausted: function(forager) {
+		if (forager.energy < 1) {
+			monitor('Forager from ' + forager.owner + ' is exhausted.', 'forager id: ' + forager.id);
 
-		m.notify('swm:nrsMove', this);
+			m.notify('swm:fgrExhausted', forager);
+			return true;
+		} else {
+			return false;
+		}
 	},
 
-	nurseBeeFoundSomething: function() {
+	nurseBeeMove: function(nurseBee) {
+		nurseBee.prevEdge = nurseBee.passedEdge;
+		nurseBee.wasAt = nurseBee.isAt;
+		nurseBee.passedEdge = rdfGraph.getRandomEdgeFromNode(nurseBee.isAt)
+		nurseBee.isAt = rdfGraph.edgeGetOtherEnd(nurseBee.passedEdge, nurseBee.isAt);
+
+		m.notify('swm:nrsMove', nurseBee);
+	},
+
+	nurseBeeFoundSomething: function(nurseBee) {
 		var found;
 
-		switch (this.type) {
+		switch (nurseBee.type) {
 			case 'rdfs5':  // uuu rdfs:subPropertyOf vvv . && vvv rdfs:subPropertyOf xxx . > uuu rdfs:subPropertyOf xxx .
-				if (this.prevEdge != null && this.prevEdge.label == subPropertyOfURI && this.passedEdge.label == subPropertyOfURI) {
-					if (this.prevEdge.target == this.passedEdge.source) {
-						found = rdfGraph.newInferredEdge(this.prevEdge.source, subPropertyOfURI, this.passedEdge.target, 'rdfs');
-					} else if (this.prevEdge.source == this.passedEdge.target) {
-						found = rdfGraph.newInferredEdge(this.passedEdge.source, subPropertyOfURI, this.prevEdge.target, 'rdfs');
+				if (nurseBee.prevEdge != null && nurseBee.prevEdge.id == subPropertyOfURI && nurseBee.passedEdge.id == subPropertyOfURI) {
+					if (nurseBee.prevEdge.target == nurseBee.passedEdge.source) {
+						found = rdfGraph.newInferredEdge(nurseBee.prevEdge.source, subPropertyOfURI, nurseBee.passedEdge.target, 'rdfs');
+					} else if (nurseBee.prevEdge.source == nurseBee.passedEdge.target) {
+						found = rdfGraph.newInferredEdge(nurseBee.passedEdge.source, subPropertyOfURI, nurseBee.prevEdge.target, 'rdfs');
 					}
 				}
 				break;
 			case 'rdfs11': // uuu rdfs:subClassOf vvv .    && vvv rdfs:subClassOf xxx .    > uuu rdfs:subClassOf xxx .
-				if (this.prevEdge != null && this.prevEdge.label == subClassOfURI && this.passedEdge.label == subClassOfURI) {
-					if (this.prevEdge.target == this.passedEdge.source) {
-						found = rdfGraph.newInferredEdge(this.prevEdge.source, subClassOfURI, this.passedEdge.target, 'rdfs');
-					} else if (this.prevEdge.source == this.passedEdge.target) {
-						found = rdfGraph.newInferredEdge(this.passedEdge.source, subClassOfURI, this.prevEdge.target, 'rdfs');
+				if (nurseBee.prevEdge != null && nurseBee.prevEdge.id == subClassOfURI && nurseBee.passedEdge.id == subClassOfURI) {
+					if (nurseBee.prevEdge.target == nurseBee.passedEdge.source) {
+						found = rdfGraph.newInferredEdge(nurseBee.prevEdge.source, subClassOfURI, nurseBee.passedEdge.target, 'rdfs');
+					} else if (nurseBee.prevEdge.source == nurseBee.passedEdge.target) {
+						found = rdfGraph.newInferredEdge(nurseBee.passedEdge.source, subClassOfURI, nurseBee.prevEdge.target, 'rdfs');
 					}
 				}
 				break;
 			case 'rdfs9':  // uuu rdfs:subClassOf xxx .    && vvv rdf:type uuu .           > vvv rdf:type xxx .
-				if (this.prevEdge != null && this.prevEdge.label == subClassOfURI && this.passedEdge.label == typeURI && this.prevEdge.source == this.passedEdge.target) {
-					found = rdfGraph.newInferredEdge(this.passedEdge.source, typeURI, this.prevEdge.target, 'rdf');
-				} else if (this.prevEdge != null && this.prevEdge.label == typeURI && this.passedEdge.label == subClassOfURI && this.prevEdge.target == this.passedEdge.source) {
-					found = rdfGraph.newInferredEdge(this.prevEdge.source, typeURI, this.passedEdge.target, 'rdf');
+				if (nurseBee.prevEdge != null && nurseBee.prevEdge.id == subClassOfURI && nurseBee.passedEdge.id == typeURI && nurseBee.prevEdge.source == nurseBee.passedEdge.target) {
+					found = rdfGraph.newInferredEdge(nurseBee.passedEdge.source, typeURI, nurseBee.prevEdge.target, 'rdf');
+				} else if (nurseBee.prevEdge != null && nurseBee.prevEdge.id == typeURI && nurseBee.passedEdge.id == subClassOfURI && nurseBee.prevEdge.target == nurseBee.passedEdge.source) {
+					found = rdfGraph.newInferredEdge(nurseBee.prevEdge.source, typeURI, nurseBee.passedEdge.target, 'rdf');
 				}
 				break;
 			case 'rdfs8':
-				if (this.passedEdge != null && this.passedEdge.label == typeURI && this.isAt.node == classURI) {
-					// add: this.wasAt | subClassOfURI | resourceURI
+				if (nurseBee.passedEdge != null && nurseBee.passedEdge.id == typeURI && nurseBee.isAt.id == classURI) {
+					// add: nurseBee.wasAt | subClassOfURI | resourceURI
 					// *	first add (if not exists) resourceURI node to graph
-					// found = rdfGraph.newInferredEdge(this.wasAt.node, subClassOfURI, resourceURI, 'rdfs');
+					// found = rdfGraph.newInferredEdge(nurseBee.wasAt.id, subClassOfURI, resourceURI, 'rdfs');
 				}
 				break;
 			case 'rdfs13':
-				if (this.passedEdge != null && this.passedEdge.label == typeURI && this.isAt.node == datatypeURI) {
-					// add: this.wasAt | subClassOfURI | literalURI
+				if (nurseBee.passedEdge != null && nurseBee.passedEdge.id == typeURI && nurseBee.isAt.id == datatypeURI) {
+					// add: nurseBee.wasAt | subClassOfURI | literalURI
 					// *	first add (if not exists) literalURI node to graph
-					// found = rdfGraph.newInferredEdge(this.wasAt.node, subClassOfURI, literalURI, 'rdfs');
+					// found = rdfGraph.newInferredEdge(nurseBee.wasAt.id, subClassOfURI, literalURI, 'rdfs');
 				}
 				break;
 			default:
@@ -167,11 +170,11 @@ var behavior = {
 		}
 
 		if (found) {
-			var subject = utils.getHash(found.source.node);
-			var predicate = utils.getHash(found.label);
-			var object = utils.getHash(found.target.node);
+			var subject = utils.getHash(found.source.id);
+			var predicate = utils.getHash(found.id);
+			var object = utils.getHash(found.target.id);
 
-			monitor('nurse bee found:', 'nurse bee id: ' + this.id);
+			monitor('Nurse bee found:', 'nurse bee id: ' + nurseBee.id);
 			monitor('&nbsp;&nbsp;' + subject + ' ' + predicate + ' ' + object, '', 'data');
 
 			m.notify('swm:nrsFound', found);
@@ -185,7 +188,7 @@ var behavior = {
 
 // found = matches(this,
 // 	{ 'prevEdge': subClassOfURI, 'passedEdge': subClassOfURI, 'prevEdge.target': this.passedEdge.source },
-// 	{ 'source': this.prevEdge.source, 'label': subClassOfURI, 'target': this.passedEdge.target, 'type': 'rdfs' });
+// 	{ 'source': this.prevEdge.source, 'id': subClassOfURI, 'target': this.passedEdge.target, 'type': 'rdfs' });
 
 function matches(context, pattern, result) {
 	/*
@@ -203,5 +206,5 @@ function matches(context, pattern, result) {
 		if (context[item] && context[item] != pattern[item]) return null;
 	}
 
-	return rdfGraph.newInferredEdge(result.source, result.label, result.target, result.type);
+	return rdfGraph.newInferredEdge(result.source, result.id, result.target, result.type);
 }

@@ -2,7 +2,7 @@ var d = {};
 d.nurseFound = [];
 
 m.when('swm:nrsFound', function(data) {
-	d.nurseFound.push(data.toString());
+	d.nurseFound.push(rdfGraph.inferredEdgeToString(data));
 });
 
 m.when('swm:cycleComplete', function(data) {

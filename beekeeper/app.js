@@ -1,3 +1,8 @@
+// document.addEventListener( "DOMContentLoaded", function() {
+//     document.removeEventListener( "DOMContentLoaded", arguments.callee, false );
+//     jQuery.ready();
+// }, false );
+
 $(function () {
     if (window.location.hash) {
         config.ownerID = window.location.hash.substring(1);
@@ -12,13 +17,35 @@ $(function () {
 
     p2p.setup(config.ownerID);
     $('#ownerID').html(config.ownerID);
+    $('#userID').val(config.ownerID);
 
     for (friend in config.friends) {
         addFriendElement(friend);
         if (config.connectOnLoad) p2p.connect(friend);
     }
 
-    $('#visualize').get(0).checked = config.visualizationEnabled;
+    if (!session.config || !config.skipLoadScreen) $('#loadscreen').show();
+    setMonitorEnabled(config.monitorEnabled);
+
+    // load options
+    $('#skipOptions').get(0).checked = config.skipLoadScreen;
+    $('#connectOnLoad').get(0).checked = config.connectOnLoad;
+    $('#requestDatasetsOnLoad').get(0).checked = config.requestDatasetsOnLoad;
+    $('#configlocalstorage').get(0).checked = config.saveConfigToLocalStorage;
+    $('#graphlocalstorage').get(0).checked = config.saveGraphToLocalStorage;
+    $('#linksetsEnabled').get(0).checked = config.linksetsEnabled;
+    $('#visEnabled').get(0).checked = config.visualizationEnabled;
+
+    if (!config.visualizationEnabled) {
+        $('.visOption').attr('disabled', true);
+        $('#status-message').css('color', '#fff');
+    }
+
+    $('#showLabels').get(0).checked = config.showLabels;
+    $('#showMarkers').get(0).checked = config.showMarkers;
+    $('#staticGraph').get(0).checked = config.staticGraph;
+    $('#staticGraphIterations').attr('value', config.staticGraphIterations);
+
     $('#speedSlider').attr('value', config.animationInterval);
 });
 
@@ -44,6 +71,9 @@ function loadFiles(files) {
         if (evt.target.readyState == FileReader.DONE) {
             var content = evt.target.result;
             generateGraph(content);
+            $('#files, #load').hide();
+            $('#saveFile').show();
+            $('#loadscreen').hide();
         }
     };
 }
@@ -76,14 +106,14 @@ function loadModule(src, callback) {
 }
 
 function showLoadOptions() {
-    $('#status-message').html('');
+    $('#sm-1').html('');
     $('#inputN3').show();
     $('#load').hide();
     $('#generate').show();
 }
 
 function hideLoadOptions() {
-    $('#status-message').html('');
+    $('#sm-1').html('');
     $('#inputN3').hide();
     $('#generate').hide();
     $('#load').show();
@@ -151,7 +181,7 @@ var m = (function() {
 
 })();
 
-m.when('rdf:loaded', function(numOfTriples) { $('#status-message').html('graph loaded. (' + numOfTriples + ' triples)').attr('title', new Date().toLocaleString()); });
+m.when('rdf:loaded', function(numOfTriples) { $('#sm-1').html('Graph loaded. (' + numOfTriples + ' triples)').attr('title', new Date().toLocaleString()); });
 
 // m.when('rdf:loaded', function(data) {
 //     console.log('nodesIndex:');
@@ -168,23 +198,23 @@ m.when('rdf:loaded', function(numOfTriples) { $('#status-message').html('graph l
 
 m.when('swm:initialized', function() { 
     $('#init').hide();
-    $('#nextStep').show();
+    $('#step').show();
     $('#animate').show();
     $('#run').show();
 });
 
 m.when('swm:sctsSentTo', function(scouts, receivers) {
     receivers.forEach(function(receiver) {
-        monitor('sent ' + scouts.length + ' scout' + ((scouts.length == 1) ? '' : 's') + ' to ' + receiver + '.');
+        monitor('Sent ' + scouts.length + ' scout' + ((scouts.length == 1) ? '' : 's') + ' to ' + receiver + '.');
     });
 });
 
 m.when('swm:sctMigratedTo', function(scout, receiver) {
-    monitor('scout from ' + scout.owner + ' migrated to ' + utils.getHash(scout.isAt.node) + ' at ' + receiver, 'scout id: ' + scout.id);
+    monitor('Scout from ' + scout.owner + ' migrated to ' + utils.getHash(scout.isAt.id) + ' at ' + receiver, 'scout id: ' + scout.id);
 });
 
-m.when('swm:frgsSentTo', function(foragers, receiver) {
-    monitor('sent ' + foragers.length + ' forager' + ((foragers.length == 1) ? '' : 's') + ' to ' + receiver + '.');
+m.when('swm:fgrsSentTo', function(foragers, receiver) {
+    monitor('Sent ' + foragers.length + ' forager' + ((foragers.length == 1) ? '' : 's') + ' to ' + receiver + '.');
 });
 
 m.when('swm:sctFound', function(data) {
@@ -193,12 +223,12 @@ m.when('swm:sctFound', function(data) {
     // TODO: remove scout
     p2p.connect(data.owner);
 
-    console.log('going to request foragers from: ' + data.owner);
-    p2p.send('requestHelpForagers', data.type, data.owner); // = scout
+    console.log('Going to request foragers from: ' + data.owner);
+    p2p.send('requestHelpForagers', { 'type': data.type, 'node': data.node }, data.owner); // = scout
 });
 
 m.when('swm:fgrFound', function(data) {
-    console.log('going to send forager back to: ' + data.owner);
+    console.log('Going to send forager back to: ' + data.owner);
     p2p.send('returningForagers', data.memory, data.owner); // = forager
 });
 
@@ -210,11 +240,22 @@ m.when('swm:fgrRemoved', function(data) {
     monitor('Removed forager from ' + data.owner + '.', 'forager id: ' + data.id);
 });
 
+var lastInferredEdge = null;
+
 m.when('rdf:initialized', function(data) {
-    if (config.visualizationEnabled) { // if visualization enabled
-        m.when('rdf:nodeNew', function(data) { D3graph.newNode(data.node, data.RDFlinkTarget) });
-        m.when('rdf:edgeNew', function(data) { D3graph.newLink(data.source.node, data.label, data.target.node, false); });
-        m.when('rdf:inferredNew', function(data) { D3graph.newLink(data.source.node, data.label, data.target.node, true); });
+    if (config.visualizationEnabled) {
+        m.when('rdf:loaded', function(data) { if (config.staticGraph) D3graph.restart(); });
+
+        m.when('rdf:nodeNew', D3graph.newNode);
+        m.when('rdf:edgeNew', function(data) {
+            if (lastInferredEdge && lastInferredEdge == rdfGraph.edgeToString(data)) {
+                D3graph.newLink(data, true);
+                lastInferredEdge = null;
+            } else {
+                D3graph.newLink(data, false);
+            }
+        });
+        m.when('rdf:inferredNew', function(data) { lastInferredEdge = rdfGraph.edgeToString(data); });
 
         // m.when('rdf:loaded', swarmVis.initialize);
 
@@ -230,15 +271,17 @@ m.when('rdf:initialized', function(data) {
         // m.when('swm:fgrRemoved', swarmVis.removeForager);
         // m.when('swm:nrsRemoved', swarmVis.removeNurseBee);
 
-        m.when('swm:sctMove', function(data) { D3graph.styleNode(data.isAt.node, 'scout'); });
-        m.when('swm:sctMigratedTo', function(scout, receiver) { D3graph.styleNode(scout.isAt.node, 'scout'); });
-        m.when('swm:fgrMove', function(data) { D3graph.styleNode(data.isAt.node, 'forager'); });
-        m.when('swm:nrsMove', function(data) { D3graph.styleNode(data.isAt.node, 'nurse'); });
+        m.when('swm:sctMove', function(data) { D3graph.styleNode(data.isAt.id, 'scout'); });
+        m.when('swm:sctMigratedTo', function(scout, receiver) { D3graph.styleNode(scout.isAt.id, 'scout'); });
+        m.when('swm:fgrMove', function(data) { D3graph.styleNode(data.isAt.id, 'forager'); });
+        m.when('swm:nrsMove', function(data) { D3graph.styleNode(data.isAt.id, 'nurse'); });
 
-        m.when('swm:sctRemoved', function(data) { D3graph.unstyleNode(data.isAt.node, 'scout'); });
-        m.when('swm:fgrRemoved', function(data) { D3graph.unstyleNode(data.isAt.node, 'forager'); });
+        m.when('swm:sctRemoved', function(data) { D3graph.unstyleNode(data.isAt.id, 'scout'); });
+        m.when('swm:fgrRemoved', function(data) { D3graph.unstyleNode(data.isAt.id, 'forager'); });
     }
 });
+
+m.when('rdf:edgeNew', function(data) { $('#sm-1').html('Graph loaded. (' + rdfGraph.getNumOfTriples() + ' triples)').attr('title', new Date().toLocaleString()); });
 
 function logger(data) {
     console.log(data);
@@ -252,6 +295,12 @@ function monitor(message, tooltip, type) {
         logger.append('<p class="' + type + '" title="' + tooltip + '">' + message + '</p>');
         logger.scrollTop(logger[0].scrollHeight);
     }
+}
+
+function setMonitorEnabled(value) {
+    config.monitorEnabled = value;
+    $('#monitorEnabled').get(0).checked = value;
+    $('#history').css('display', value ? 'block' : 'none');
 }
 
 function addToHosts(uri) {
@@ -274,9 +323,10 @@ function removeFromHosts(uri) {
     }
 }
 
-function addFriend(id) {
+function addFriend(id, hosts) {
+    hosts = hosts || [];
     if (!config.friends[id] && id != config.ownerID) {
-        config.friends[id] = { 'hosts': [], 'selected': false, 'blockIn': false, 'blockOut': false };
+        config.friends[id] = { 'hosts': hosts, 'selected': false, 'blockIn': false, 'blockOut': false };
 
         addFriendElement(id);
     }
@@ -370,6 +420,7 @@ m.when('p2p:data', processIncomingMessage);
 var protocol = {
     'requestHostedDatasets': sendHostedDatasets,
     'hostedDatasets': addHostedDatasets,
+    'requestIdsForDataset': sendIdsForDataset,
     'requestNodesList': sendNodesList,
     'nodesList': addNodesList,
     'requestIdsForNode': sendIdsForNode,
@@ -400,56 +451,6 @@ function processIncomingMessage(data) {
     } else {
         // default
     }
-
-    // switch (data.type) {
-    //     case 'requestNodesList':
-    //         // request for nodes list
-    //         // message: '' (string)
-    //         getPermissionForSendingNodesList(data.sender);
-    //         break;
-    //     case 'nodesList':
-    //         // sent nodes list
-    //         // message: nodesList (object)
-    //         storeNodesList(data.sender, data.message);
-    //         break;
-    //     case 'requestNode':
-    //         // request for id's of friends who have a specific node in their nodes list
-    //         // message: node (string)
-    //         sendFriendIdsForNode(data.sender, data.message);
-    //         break;
-    //     case 'friendIds':
-    //         // sent friend id's
-    //         // message: owner id's (array)
-    //         addFriends(data.sender, data.message);
-    //         break;
-    //     case 'scouts':
-    //         // received scouts
-    //         // message: scout objects (array)
-    //         addForeignScouts(data.sender, data.message);
-    //         break;
-    //     case 'foragers':
-    //         // received foragers
-    //         // message: forager objects (array)
-    //         addForeignForagers(data.sender, data.message);
-    //         break;
-    //     case 'requestHelpForagers':
-    //         // request by migrated scout for help from foragers
-    //         // message: scout (object)
-    //         sendForagers(data.sender, data.message);
-    //         break;
-    //     case 'returningForagers':
-    //         // returned foragers (potentially with new triples)
-    //         // message: forager objects (array)
-    //         addTriplesFromReturnedForagers(data.sender, data.message);
-    //         break;
-    //     case 'requestDenied':
-    //         // send request denied by receiving peer (e.g. blocked)
-    //         // message: ?
-    //         deniedRequest(data.sender, data.message);
-    //         break;
-    //     default:
-    //         //
-    // }
 }
 
 
@@ -479,6 +480,13 @@ function addHostedDatasets(data) {
     };
 }
 
+function sendIdsForDataset(data) {
+    if (config.hostedBy[data.message]) {
+        var friendIds = { 'dataset': data.message, 'ids': config.hostedBy[data.message] };
+        p2p.send('friendIds', friendIds, data.sender);
+    }
+}
+
 function sendNodesList(data) {
     var accept = confirm('Share your nodes list with ' + data.sender + '?');
     if (accept && rdfGraph) {
@@ -493,8 +501,6 @@ nodesLists = {};
 
 function addNodesList(data) {
     monitor('Received nodes list from ' + data.sender + '.');
-    console.log('received nodeslists:');
-    console.log(data.message);
     // $('#' + data.sender).css('color','green'); ?
     nodesLists[data.sender] = data.message;
 }
@@ -510,18 +516,32 @@ function sendIdsForNode(data) {
 }
 
 function addFriends(data) {
-    for (id in data.message['ids']) {
-        monitor(id + ' has ' + data.message['ids'][id] + ' triple' + ((data.message['ids'][id] == 1) ? '' : 's') + ' with ' + data.message['node']);
-    };
-    // do something with received friend IDs
-    // maybe connect to IDs and/or immediately send them scouts for the node (used for requesting these IDs)
+    if (data.message['node']) {
+        for (id in data.message['ids']) {
+            monitor(id + ' has ' + data.message['ids'][id] + ' triple' + ((data.message['ids'][id] == 1) ? '' : 's') + ' with ' + data.message['node']);
+        };
+        // do something with received friend IDs
+        // maybe connect to IDs and/or immediately send them scouts for the node (used for requesting these IDs)
+    }
+
+    if (data.message['dataset']) {
+        var datasetURI = data.message['dataset'];
+        if (!config.hostedBy[datasetURI]) config.hostedBy[datasetURI] = [];
+
+        data.message['ids'].forEach(function(id) {
+            monitor(id + ' hosts dataset ' + datasetURI);
+            addFriend(id, datasetURI);
+            config.hostedBy[datasetURI].push(id);
+            p2p.connect(id);
+        });
+    }
 }
 
 function addForeignScouts(data) {
     monitor('Received ' + data.message.length + ' scout' + ((data.message.length == 1) ? '' : 's') + ' from ' + data.sender + '.');
 
     for (scout in data.message) {
-        swarm.initializeScout(data.message[scout]);
+        swarm.addScout(data.message[scout]);
     };
 }
 
@@ -529,7 +549,7 @@ function addForeignForagers(data) {
     monitor('Received ' + data.message.length + ' forager' + ((data.message.length == 1) ? '' : 's') + ' from ' + data.sender + '.');
 
     for (forager in data.message) {
-        swarm.initializeForager(data.message[forager]);
+        swarm.addForager(data.message[forager]);
     };
 }
 
@@ -548,19 +568,26 @@ function sendScouts() {
 }
 
 function sendForagers(data) {
-    monitor('scout at ' + data.sender + ' found:');
-    monitor('&nbsp;&nbsp;' + data.message, '', 'data');
+    monitor('Scout at ' + data.sender + ' found:');
+    monitor('&nbsp;&nbsp;' + utils.getHash(data.message.node), '', 'data');
 
-    var foragers = swarm.initializeForagers(data.message, data.message);
+    var foragers = swarm.initializeForagers(data.message.type, data.message.node);
     p2p.send('foragers', foragers, data.sender);
 
     m.notify('swm:fgrsSentTo', foragers, data.sender);
 }
 
 function addTriplesFromReturnedForagers(data) {
-    monitor('forager returned from ' + data.sender + ', found:');
-    monitor('&nbsp;&nbsp;' + data.message, '', 'data');
+    var source = data.message.source;
+    var id = data.message.id;
+    var target = data.message.target;
+
+    monitor('Forager returned from ' + data.sender + ', found:');
+    monitor('&nbsp;&nbsp;' + utils.getHash(source) + ' ' + utils.getHash(id) + ' ' + utils.getHash(target), '', 'data');
     // TODO: add found triple to graph
+    var subject = rdfGraph.newNode(source, utils.getTypeURI(source), false) || rdfGraph.getNode(source); // newNode: add new / not new: increment node's frequency + getNode
+    var object = rdfGraph.newNode(target, utils.getTypeURI(target), false) || rdfGraph.getNode(target);
+    rdfGraph.newInferredEdge(subject, id, object, data.message.type);
 }
 
 function handleDeniedRequest(data) {

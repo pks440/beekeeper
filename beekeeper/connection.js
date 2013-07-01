@@ -48,7 +48,7 @@ var p2p = (function() {
 
         connect: function(id) { // (id, callback)
             if (!peer.connections[id]) {
-                var c = peer.connect(id);
+                var c = peer.connect(id, { reliable: true });
                 c.on('open', function() {
                     handleConnection(c);
 

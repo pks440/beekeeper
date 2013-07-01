@@ -6,21 +6,6 @@
   <title>beekeeper</title>
 
   <link rel="stylesheet" href="app.css" />
-
-  <script src="lib/jquery-1.9.1.min.js"></script>
-  <script src="lib/n3parser.js"></script>
-  <script src="lib/d3.v3.min.js"></script>
-  <script src="lib/peer.min.js"></script>
-
-  <script src="configuration.js"></script>
-  <script src="behavior.js"></script>
-  <script src="utilities.js"></script>
-  <script src="rdfGraph.js"></script>
-  <script src="visualization.js"></script>
-  <script src="swarm.js"></script>
-  <script src="connection.js"></script>
-  <script src="uicontroller.js"></script>
-  <script src="app.js"></script>  
 </head>
 <body>
 
@@ -44,11 +29,6 @@
           <input type="file" id="files" onchange="loadFiles(this.files)" />
           <!-- accept="text/plain, text/xml, application/xml, application/rdf+xml" -->
           <!-- application/json -->
-          <input type="checkbox" id="visualize" checked /><label for="visualize">visualize</label>
-          <input type="button" id="saveFile" value="Save to File" />
-          <input type="button" id="loadExperiment" value="Load Experiment" />
-          <input type="button" id="saveExperiment" value="Save Experiment Data" />
-          <span id="status-message"></span>
           <br />
           <!-- <input type="text" id="doData" />
           <input type="button" id="do" value="do" /> -->
@@ -57,6 +37,7 @@
       </div>
 
       <div id="sidebar">
+          <input type="button" id="showOptions" value="▼" />
           <p id="ownerID"></p>
           <input type="text" id="connectID" placeholder="connect ID" />
           <input type="button" id="connect" value="connect" />
@@ -67,21 +48,145 @@
           <br /><br />
           <div id="algorithmControls">
             <input type="button" id="init" value="initialize" />
-            <input type="button" id="nextStep" value="next" />
+            <input type="button" id="step" value="step" />
             <input type="button" id="animate" value="animate" />
             <label for="speedSlider" class="animationSpeed">speed: </label>
             <input type="range" min="10" max="2010" step="200" id="speedSlider" class="animationSpeed" />
             <input type="button" id="run" value="run" />
             <!-- <input type="checkbox" /> -->
           </div>
-          <div id="history"></div>
       </div>
 
     </div>
 
     <div id="graph"></div>
 
+    <span id="status-message">
+      <span id="sm-1"></span><br />
+      Average cycle time: <span id="sm-2">0</span><br />
+      Scouts: <span id="sm-s">0</span><br />
+      Foragers: <span id="sm-f">0</span><br />
+      Nurse bees: <span id="sm-n">0</span><br />
+    </span>
+
+    <div id="history"></div>
+
+    <div id="loadscreen">
+      <form id="options">
+        <p>
+          <input type="button" id="hideOptions" value="▲" />
+          <label for="userID">Name: </label>
+          <input type="text" id="userID" placeholder="User ID" />
+        </p>
+
+        <!-- <p>
+          <input type="button" id="load" value="Paste RDF" />
+          <input type="button" id="generate" value="Generate Graph" />
+          <input type="button" id="saveFile" value="Save to File" />
+        </p> -->
+
+        <p>
+          <input type="button" id="loadExperiment" value="Load Experiment" />
+          <input type="button" id="saveExperiment" value="Save Experiment Data" />
+          <input type="button" id="saveFile" value="Save Graph to File" />
+        </p>
+
+        <p>
+          <input type="text" id="dataset" placeholder="dataset URI" />
+          <input type="button" id="addDataset" value="add" />
+          <input type="button" id="removeDataset" value="remove" />
+          <input type="button" id="currentDatasets" value="current hosted datasets" />
+        </p>
+
+        <b>On startup</b>
+
+        <p>
+          <input type="checkbox" id="skipOptions" />
+          <label for="skipOptions">Skip this screen on startup</label>
+        </p>
+
+        <p>
+          <input type="checkbox" id="connectOnLoad" />
+          <label for="connectOnLoad">Automatically connect to friends</label>
+        </p>
+
+        <p>
+          <input type="checkbox" id="requestDatasetsOnLoad" />
+          <label for="requestDatasetsOnLoad">Automatically request a hosted datasets list on connecting</label>
+        </p>
+
+        <b>On exit</b>
+
+        <p>
+          <input type="checkbox" id="configlocalstorage" />
+          <label for="configlocalstorage">Save configuration to local storage</label>
+        </p>
+
+        <p>
+          <input type="checkbox" id="graphlocalstorage" disabled />
+          <label for="graphlocalstorage">Save graph(s) to local storage</label>
+        </p>
+
+        <b>Algorithm</b>
+
+        <p>
+          <input type="checkbox" id="linksetsEnabled" />
+          <label for="linksetsEnabled">Linksets enabled</label>
+        </p>
+
+        <b>User Interface</b>
+
+        <p>
+          <input type="checkbox" id="monitorEnabled" />
+          <label for="monitorEnabled">Show monitor</label>
+        </p>
+
+        <b>Visualization</b>
+
+        <p>
+          <input type="checkbox" id="visEnabled" />
+          <label for="visEnabled">Show visualization</label>
+        </p>
+
+        <p>
+          <input type="checkbox" id="showLabels" class="visOption" />
+          <label for="showLabels">Show labels</label>
+        </p>
+
+        <p>
+          <input type="checkbox" id="showMarkers" class="visOption" />
+          <label for="showMarkers">Show markers</label>
+        </p>
+
+        <p>
+          <input type="checkbox" id="staticGraph" class="visOption" />
+          <label for="staticGraph">Static graph</label><br />
+          <label for="staticGraphIterations">Number of calculation cycles: </label>
+          <input type="text" id="staticGraphIterations" value="1000" class="visOption" />
+        </p>
+
+        <p style="color: #666; float: right;">
+          p2 otherurl/path/ns<br />
+          p3 someurl/path/ns
+        </p>
+      </form>
+    </div>
+
   </div>
 
+  <script src="lib/zepto.min.js"></script>
+  <script src="lib/n3parser.js"></script>
+  <script src="lib/d3.v3.min.js"></script>
+  <script src="lib/peer.min.js"></script>
+
+  <script src="configuration.js"></script>
+  <script src="behavior.js"></script>
+  <script src="utilities.js"></script>
+  <script src="rdfGraph.js"></script>
+  <script src="visualization.js"></script>
+  <script src="swarm.js"></script>
+  <script src="connection.js"></script>
+  <script src="uicontroller.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

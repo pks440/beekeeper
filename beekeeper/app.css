@@ -1,30 +1,49 @@
-body                  { margin: 0; padding: 0; overflow: hidden; font: 14px sans-serif; background: grey; }
-#container            { width: 1280px; margin: auto; margin-bottom: 10px; }
+/* http://meyerweb.com/eric/tools/css/reset/ 
+   v2.0 | 20110126
+   License: none (public domain)
+   [modified]
+*/
+
+html, body, div, span, h1, h2, h3, h4, h5, h6, p, blockquote, pre, a, img, q, ol, ul, li, fieldset, form, label, legend, table, caption, tbody, tfoot, thead, tr, th, td, article, aside, canvas, details, figure, figcaption, footer, header, hgroup, menu, nav, section, summary, time, mark { 
+	margin: 0; padding: 0;	border: 0; font-size: 100%;	font: inherit; vertical-align: baseline; 
+}
+
+body                  { overflow: hidden; font: 14px sans-serif; background: grey; }
+#container            { margin: auto; margin-bottom: 10px; }
+
+#loadscreen           { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fff; z-index: 2; }
+#options              { margin: 0 auto; padding: 50px 30px; width: 540px; height: auto; background: grey; }
+#options p            { margin: 12px 0; }
+input                 { border: none; padding: 3px; }
+
 #inputN3              { width: 100%; height: 250px; padding: 10px; border: none; resize: none; display: none; } /* wider than screen due to padding */
 
 /* controls */
 #topbar               { float: left; width: 100%; background: grey; }
-#status-message       { margin-left: 10px; font: 14px sans-serif; color: #fff; } /*green*/
-#generate             { display: none; }
+#generate, #saveFile  { display: none; }
 #saveExperiment       { display: none; }
 
-#sidebar              { float: right; position: absolute; right: 0; padding: 5px; height: 100%; background: grey; z-index: 1; }
-#ownerID              { margin-left: 5px; font-weight: bold; color: #fff; }
+#sidebar              { float: right; position: absolute; right: 0; top: 0; padding: 5px; border-left: solid 2px #666; border-bottom: solid 2px #666; height: auto; background: grey; z-index: 1; }
+#showOptions, #hideOptions { float: right; }
+#ownerID              { padding: 15px 5px; font-weight: bold; color: #fff; }
 #friendsList          { margin: 10px; }
 div.friend            { font-weight: bold; color: #999; cursor: pointer; }
 span.name             { color: red; }
 span.option           { margin-left: 2px; float: right; }
-#history              { width: 250px; height: 460px; overflow: auto; padding: 5px; background: #fff; }
-#nextStep, #animate, #run, .animationSpeed   { display: none; }
+#history              { position: absolute; right: 30px; bottom: 45px; width: 250px; height: 320px; overflow: auto; /*background: rgba(255, 255, 255, 0.7);*/ }
+#history p            { background: #fff; padding: 5px; }
+#step, #animate, #run, .animationSpeed   { display: none; }
 #speedSlider          { width: 100px; height: 10px; }
+
+#status-message       { position: absolute; left: 25px; bottom: 45px; margin-left: 10px; font: 14px sans-serif; color: grey; } /*green*/
 
 #graph                {  } /*clear: both;*/
 
 svg                   { background: #FFF; margin: 20px; }
 path.link             { stroke: grey; }
 path.marker           { fill: grey; }
-path.inferred         { stroke-dasharray: 2,2; }
-circle.node           { fill: #eee; stroke-width: 1; stroke: #333; }
+path.inferred         { stroke-dasharray: 2,2; stroke: red; }
+circle.node           { fill: #eee; stroke-width: 2; stroke: #999; }
 text.id               { text-anchor: middle; font-weight: bold; font: bold 10px sans-serif; }
 text.RDFlinkTarget    { fill: grey; }
 

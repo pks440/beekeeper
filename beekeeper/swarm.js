@@ -1,6 +1,5 @@
 var swarm = (function(behavior) {
 
-    // settings
     var foragerEnergy = behavior.foragerEnergy;
 
     var numOfScouts = 0,
@@ -12,108 +11,129 @@ var swarm = (function(behavior) {
         nurseBees = [];
 
     var s = 0, f = 0, n = 0, cycle = 0;
+    var totalTime = 0, start = 0, end = 0;
 
-    function Scout(id, owner, type, location) {
-        this.id = id;
-        this.owner = owner;
-        this.type = type; // node
-        this.isAt = location;
+    function newScout(id, owner, node, type, location) {
+        var scout = {
+            'id': id,
+            'owner': owner,
+            'node': node,
+            'type': type,
+            'isAt': location
+        }
 
-        m.notify('swm:sctInit', this);
+        m.notify('swm:sctInit', scout);
+
+        return scout;
+    } // TODO: add type of scout (class/property) to determine which kind of foragers to initialize
+
+    var scoutMove = behavior.scoutMove;
+    var scoutFoundSomething = behavior.scoutFoundSomething;
+
+    function newForager(id, owner, triple, location) {
+        var forager = {
+            'id': id,
+            'owner': owner,
+            'triple': triple,
+            'isAt': location,
+            'passedEdge': null,
+            'wasAt': null,
+            'energy': foragerEnergy,
+            'memory': []
+        }
+
+        m.notify('swm:fgrInit', forager);
+
+        return forager;
     }
 
-    Scout.prototype.move = behavior.scoutMove;
-    Scout.prototype.foundSomething = behavior.scoutFoundSomething;
+    var foragerMove = behavior.foragerMove;
+    var foragerFoundSomething = behavior.foragerFoundSomething;
+    var foragerIsExhausted = behavior.foragerIsExhausted;
 
-    function Forager(id, owner, triple, location) {
-        this.id = id;
-        this.owner = owner;
-        this.triple = triple; // triple
-        this.isAt = location;
-        this.passedEdge;
-        this.wasAt;
-        this.energy = foragerEnergy;
-        this.memory = [];
+    function newNurseBee(type, location) {
+        var nurseBee = {
+            'id': utils.guid(),
+            'owner': config.ownerID,
+            'type': type,
+            'isAt': location,
+            'passedEdge': null,
+            'wasAt': null,
+            'prevEdge': null
+        }
 
-        m.notify('swm:fgrInit', this);
+        m.notify('swm:nrsInit', nurseBee);
+
+        return nurseBee;
     }
 
-    Forager.prototype.move = behavior.foragerMove;
-    Forager.prototype.foundSomething = behavior.foragerFoundSomething;
-    Forager.prototype.isExhausted = behavior.foragerIsExhausted;
+    var nurseBeeMove = behavior.nurseBeeMove;
+    var nurseBeeFoundSomething = behavior.nurseBeeFoundSomething;
 
-    function NurseBee(type, location) {
-        this.id = utils.guid();
-        this.owner = config.ownerID;
-        this.type = type; // type number
-        this.isAt = location;
-        this.passedEdge;
-        this.wasAt;
-        this.prevEdge;
-
-        m.notify('swm:nrsInit', this);
-    }
-
-    NurseBee.prototype.move = behavior.nurseBeeMove;
-    NurseBee.prototype.foundSomething = behavior.nurseBeeFoundSomething;
-
-    function init() {
-        initializeNurseBees();
+    function initialize() {
+        for (var i = 0; i < 3; i++) {
+            initializeNurseBees();
+        }
         // initializeScouts();
         // initializeForagers();
+
+        $('#sm-n').text(numOfNurseBees);
 
         m.notify('swm:initialized', swarm);
     }
 
-    function initScouts() {
-        var ownScouts = [];
-        var sortedNodes = rdfGraph.getSortedNodes();
+    function initializeScouts() {
+        var scouts = [];
+        var classNodes = rdfGraph.getClasses();
+        var propertyNodes = rdfGraph.getProperties();
 
+        // var numOfNodes = classNodes.length;
+        // if (numOfNodes > 0) {
+        // for (var i = 0; i < numOfNodes; i++) {
         // for (var i = 0; i < 3; i++) {
-        //     ownScouts.push(new Scout(sortedNodes[i], rdfGraph.getRandomNode()));
+        for (classNode in classNodes) {
+            scouts.push(newScout(utils.guid(), config.ownerID, classNode, 'class', null));
+        }
+        // }
+        // }
         // }
 
-        for (var i = 0; i < 1; i++) {
-            ownScouts.push({ 'id': utils.guid(), 'owner': config.ownerID, 'type': sortedNodes[i] });
+        for (propertyNode in propertyNodes) {
+            scouts.push(newScout(utils.guid(), config.ownerID, propertyNode, 'property', null));
         }
 
-        // console.log(ownScouts);
-
-        return ownScouts;
+        return scouts;
     }
 
-    function initForagers(type, location) {
-        ownForagers = [];
+    function initializeForagers(type, node, location) {
+        var foragers = [];
+        location = location || node;
 
-        // three different types of foragers
-        var triples = [
-            { 's': type, 'p': 'http://www.w3.org/2000/01/rdf-schema#subClassOf', 'o': undefined }
-            // { 's': undefined, 'p': 'http://www.w3.org/2000/01/rdf-schema#subClassOf', 'o': type },
-            // { 's': undefined, 'p': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'o': type }
-        ];
+        var triples;
 
-        // triples.forEach(function(triple) {
-        //     console.log('forager ' + numOfForagers + ' (' + type + '):');
-        //     console.log(triple);
-
-        //     ownForagers.push(new Forager(triple, location));
-        //     numOfForagers++;
-        // });
+        // types of foragers
+        if (type == 'class') {
+            triples = [
+                { 's': node, 'p': 'http://www.w3.org/2000/01/rdf-schema#subClassOf', 'o': undefined },
+                { 's': undefined, 'p': 'http://www.w3.org/2000/01/rdf-schema#subClassOf', 'o': node },
+                { 's': undefined, 'p': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'o': node },
+                { 's': node, 'p': undefined, 'o': undefined }
+            ];
+        } else if (type == 'property') {
+            triples = [
+                { 's': node, 'p': 'http://www.w3.org/2000/01/rdf-schema#domain', 'o': undefined },
+                { 's': node, 'p': 'http://www.w3.org/2000/01/rdf-schema#range', 'o': undefined },
+                { 's': node, 'p': 'http://www.w3.org/2000/01/rdf-schema#subPropertyOf', 'o': undefined },
+                { 's': undefined, 'p': 'http://www.w3.org/2000/01/rdf-schema#subPropertyOf', 'o': node },
+                { 's': node, 'p': undefined, 'o': undefined }
+            ];
+        }
 
         triples.forEach(function(triple) {
-            ownForagers.push({ 'id': utils.guid(), 'owner': config.ownerID, 'triple': triple, 'isAt': location });
+            foragers.push(newForager(utils.guid(), config.ownerID, triple, location));
         });
 
-        return ownForagers;
-
-        // for (triple in rdfGraph.edgesIndex[type]) { // TODO: cached?
-        //     foragers[numOfForagers] = new Forager(triple, location);
-            
-        //     console.log('forager ' + numOfForagers + ' (' + type + '):');
-        //     console.log(triple);
-            
-        //     numOfForagers++;
-        // }
+        return foragers;
     }
 
     function initializeNurseBees() {
@@ -124,30 +144,9 @@ var swarm = (function(behavior) {
         ];
 
         types.forEach(function(type) {
-            nurseBees.push(new NurseBee(type, rdfGraph.getRandomNode()));
+            nurseBees.push(newNurseBee(type, rdfGraph.getRandomNode()));
             numOfNurseBees++;
         });
-    }
-
-
-    function initScout(scout) {
-        var isAt;
-        
-        if (scout.isAt && rdfGraph.getNode(scout.isAt)) {
-            isAt = rdfGraph.getNode(scout.isAt);
-        } else {
-            isAt = rdfGraph.getRandomNode();
-        }
-
-        scouts.push(new Scout(scout.id, scout.owner, scout.type, isAt));
-        numOfScouts++;
-    }
-
-    function initForager(forager) {
-        var isAt = rdfGraph.getNode(forager.isAt);
-
-        foragers.push(new Forager(forager.id, forager.owner, forager.triple, isAt));
-        numOfForagers++;
     }
 
     function forScoutsFrom(owner, fn) {
@@ -172,6 +171,8 @@ var swarm = (function(behavior) {
         var scout = scouts.splice(index, 1);
         numOfScouts--;
 
+        $('#sm-s').text(numOfScouts);
+
         m.notify('swm:sctRemoved', scout[0]);
     }
 
@@ -179,27 +180,37 @@ var swarm = (function(behavior) {
         var forager = foragers.splice(index, 1);
         numOfForagers--;
 
+        $('#sm-f').text(numOfForagers);
+
         m.notify('swm:fgrRemoved', forager[0]);
     }
 
     return {
 
-        initialize: init,
-        initializeScouts: initScouts,
-        initializeForagers: initForagers,
-        initializeScout: initScout,
-        initializeForager: initForager,
-
-        prepareScoutForMigrating: function(scout) {
-            return [{ 'id': scout.id, 'owner': scout.owner, 'type': scout.type, 'isAt': scout.isAt.node }];
-        },
+        initialize: initialize,
+        initializeScouts: initializeScouts,
+        initializeForagers: initializeForagers,
 
         addScout: function(scout) {
+            if (scout.isAt && rdfGraph.getNode(scout.isAt.id)) {
+                scout.isAt = rdfGraph.getNode(scout.isAt.id);
+            } else {
+                scout.isAt = rdfGraph.getRandomNode();
+            }
+
             scouts.push(scout);
+            numOfScouts++;
+
+            $('#sm-s').text(numOfScouts);
         },
 
         addForager: function(forager) {
+            forager.isAt = rdfGraph.getNode(forager.isAt);
+
             foragers.push(forager);
+            numOfForagers++;
+
+            $('#sm-f').text(numOfForagers);
         },
 
         removeScoutsFrom: function(owner) {
@@ -215,59 +226,63 @@ var swarm = (function(behavior) {
         },
 
         step: function() {
+            start = performance.now();
+
             if (s < numOfScouts) {
-                // console.time('scouts');
-                D3graph.unstyleNode(scouts[s].isAt.node, 'scout');
-                if (scouts[s].move() == 'migrated') {
+                // console.time('scout');
+                if (config.visualizationEnabled) { D3graph.unstyleNode(scouts[s].isAt.id, 'scout'); }
+                if (scoutMove(scouts[s]) == 'migrated') {
                     // remove ONLY if sending over successful (= not blocked etc.), maybe on listening to 'swm:sctReceived' response message?
                     removeScout(s);
                 } else {
-                    if (scouts[s].foundSomething()) {
+                    if (scoutFoundSomething(scouts[s])) {
                         //
                     }
                 }
 
                 s++;
-                // console.timeEnd('scouts');
+                // console.timeEnd('scout');
             } else if (f < numOfForagers) {
-                // console.time('foragers');
-                D3graph.unstyleNode(foragers[f].isAt.node, 'forager');
-                foragers[f].move();
-                if (foragers[f].foundSomething()) {
+                // console.time('forager');
+                if (config.visualizationEnabled) { D3graph.unstyleNode(foragers[f].isAt.id, 'forager'); }
+                foragerMove(foragers[f]);
+                if (foragerFoundSomething(foragers[f])) {
 
                 }
-                if (foragers[f].isExhausted()) {
+                if (foragerIsExhausted(foragers[f])) {
                     removeForager(f);
-
-                    // console.log('foragers left:');
-                    // console.log(foragers);
                 }
 
                 f++;
-                // console.timeEnd('foragers');
+                // console.timeEnd('forager');
             } else if (n < numOfNurseBees) {
-                // console.time('nurses');
-                D3graph.unstyleNode(nurseBees[n].isAt.node, 'nurse');
-                nurseBees[n].move();
-                if (nurseBees[n].foundSomething()) {
+                // console.time('nurse');
+                if (config.visualizationEnabled) { D3graph.unstyleNode(nurseBees[n].isAt.id, 'nurse'); }
+                nurseBeeMove(nurseBees[n]);
+                if (nurseBeeFoundSomething(nurseBees[n])) {
                     //
                 }
 
                 n++;
-                // console.timeEnd('nurses');
+                // console.timeEnd('nurse');
             } else {
                 s = f = n = 0;
                 this.step();
             }
 
             cycle++;
+
+            end = performance.now();
+            totalTime += (end - start);
+            $('#sm-2').text((end - start).toFixed(5)); // totalTime / cycle
+
             m.notify('swm:cycleComplete', cycle);
 
         },
 
         run: function() {
             while (false) { // while not 'stop' called
-                swarm.step();
+                this.step();
             }
         },
 

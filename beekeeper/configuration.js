@@ -7,8 +7,12 @@ var config = {
 
 	skipLoadScreen: false,
 	connectOnLoad: true,
+	requestDatasetsOnLoad: false,
 	monitorEnabled: true,
 	visualizationEnabled: true,
+	staticGraph: false,
+	staticGraphIterations: 1000,
+	showLabels: true,
 	showMarkers: true,
 	animationInterval: 1000,
 
@@ -16,5 +20,5 @@ var config = {
 	royalJellyMode: false,
 
 	saveConfigToLocalStorage: true,
-	// saveGraphToLocalStorage: true
+	saveGraphToLocalStorage: false
 };
